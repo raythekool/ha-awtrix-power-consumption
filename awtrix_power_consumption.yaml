@@ -1,0 +1,239 @@
+blueprint:
+  name: "AWTRIX Power Consumption Display ⚡"
+  description:
+    "Display real-time household power consumption on your AWTRIX LED matrix device with dynamic colors and icons.\n\n
+    Shows current wattage usage with color-coded display based on consumption levels.\n\n
+    ## ⚠️ REQUIREMENTS\n
+    - **Home Assistant** 2024.6.0 or newer\n
+    - **AWTRIX 3** device configured with MQTT\n
+    - **Power sensor** (e.g., Shelly EM, Emporia VUE, Zigbee smart plug with power monitoring)\n\n
+    ## 🎯 KEY FEATURES\n
+    - **Dynamic colors**: Green for low usage, orange for medium, red for high\n
+    - **Real-time updates**: Updates whenever power consumption changes\n
+    - **Customizable thresholds**: Set your own low/medium/high consumption levels\n
+    - **Multi-device support**: Send to multiple AWTRIX devices\n
+    - **Unit flexibility**: Display in W or kW\n\n
+    ## 📊 DISPLAY FORMAT\n
+    `1250W` or `1.25kW`\n
+    - Green icon and text when consumption < low threshold\n
+    - Orange icon and text when low ≤ consumption < high threshold\n
+    - Red icon and text when consumption ≥ high threshold\n\n
+    ## 🔗 MORE INFO\n
+    Documentation: https://github.com/Raythekool/ha-awtrix-power-consumption\n
+    Buy me a coffee: https://buymeacoffee.com/raythekool"
+  domain: automation
+  homeassistant:
+    min_version: "2024.6.0"
+  source_url: https://github.com/Raythekool/ha-awtrix-power-consumption/blob/main/awtrix_power_consumption.yaml
+  input:
+    awtrix:
+      name: AWTRIX Device
+      description: Select your AWTRIX device(s)
+      selector:
+        device:
+          integration: mqtt
+          manufacturer: Blueforcer
+          model: AWTRIX 3
+          multiple: true
+
+    power_entity:
+      name: Power Sensor
+      description: Select the sensor that reports current power consumption in Watts (W)
+      selector:
+        entity:
+          filter:
+            - device_class: power
+
+    app_name:
+      name: AWTRIX App Name
+      description: Unique identifier for this power app on AWTRIX
+      selector:
+        text: {}
+      default: "power_consumption"
+
+    display_unit:
+      name: Display Unit
+      description: Choose how to display power consumption
+      selector:
+        select:
+          options:
+            - label: "Watts (W)"
+              value: "W"
+            - label: "Kilowatts (kW)"
+              value: "kW"
+            - label: "Auto (kW if > 1000W)"
+              value: "auto"
+      default: "auto"
+
+    low_threshold:
+      name: Low Consumption Threshold (W)
+      description: Power below this value will show green (default 500W)
+      selector:
+        number:
+          min: 0
+          max: 10000
+          step: 100
+          unit_of_measurement: "W"
+          mode: slider
+      default: 500
+
+    high_threshold:
+      name: High Consumption Threshold (W)
+      description: Power above this value will show red (default 2000W)
+      selector:
+        number:
+          min: 100
+          max: 20000
+          step: 100
+          unit_of_measurement: "W"
+          mode: slider
+      default: 2000
+
+    icon_mode:
+      name: Icon Mode
+      description: Choose icon style for power display
+      selector:
+        select:
+          options:
+            - label: "Lightning Bolt (Dynamic Color)"
+              value: "lightning"
+            - label: "Plug (Static)"
+              value: "plug"
+            - label: "Home Power (Dynamic Color)"
+              value: "home"
+      default: "lightning"
+
+    lifetime:
+      name: App Lifetime (seconds)
+      description: How long the app should remain on AWTRIX before auto-refresh (0 = always visible)
+      selector:
+        number:
+          min: 0
+          max: 3600
+          step: 60
+          unit_of_measurement: sec
+          mode: slider
+      default: 0
+
+    no_scroll:
+      name: Disable Scrolling
+      description: Keep text static instead of scrolling
+      selector:
+        boolean: {}
+      default: true
+
+mode: restart
+
+variables:
+  device_ids: !input awtrix
+  app_name: !input app_name
+  power_entity: !input power_entity
+  display_unit: !input display_unit
+  low_threshold: !input low_threshold
+  high_threshold: !input high_threshold
+  icon_mode: !input icon_mode
+  lifetime: !input lifetime
+  no_scroll: !input no_scroll
+
+  devices_topics: |
+    {%- macro get_device_topic(device_id) %}
+      {{ states((device_entities(device_id) | select('search','device_topic') | list)[0]) }}
+    {%- endmacro %}
+    {%- set ns = namespace(devices=[]) %}
+    {%- for device_id in device_ids %}
+      {%- set device=get_device_topic(device_id)|replace('','') %}
+      {% set ns.devices = ns.devices + [ device ~ '/custom/' ~ app_name] %}
+    {%- endfor %}
+    {{ ns.devices | reject('match','unavailable') | list }}
+
+  power_payload: |
+    {%- set power_raw = states(power_entity)|float(0) %}
+    {%- set power_value = power_raw|round(0)|int %}
+    
+    {# Determine display text based on unit preference #}
+    {%- if display_unit == 'kW' %}
+      {%- set text = (power_raw / 1000)|round(2) ~ 'kW' %}
+    {%- elif display_unit == 'auto' %}
+      {%- if power_value >= 1000 %}
+        {%- set text = (power_raw / 1000)|round(2) ~ 'kW' %}
+      {%- else %}
+        {%- set text = power_value ~ 'W' %}
+      {%- endif %}
+    {%- else %}
+      {%- set text = power_value ~ 'W' %}
+    {%- endif %}
+    
+    {# Determine color and icon based on consumption level #}
+    {%- if power_value < low_threshold %}
+      {%- set color = [0, 255, 0] %}  {# Green - Low consumption #}
+      {%- if icon_mode == 'lightning' %}
+        {%- set icon = '44432' %}  {# Green lightning #}
+      {%- elif icon_mode == 'plug' %}
+        {%- set icon = '6747' %}  {# Plug icon #}
+      {%- else %}
+        {%- set icon = '49866' %}  {# Home with lightning #}
+      {%- endif %}
+    {%- elif power_value < high_threshold %}
+      {%- set color = [255, 165, 0] %}  {# Orange - Medium consumption #}
+      {%- if icon_mode == 'lightning' %}
+        {%- set icon = '44432' %}  {# Orange lightning #}
+      {%- elif icon_mode == 'plug' %}
+        {%- set icon = '6747' %}  {# Plug icon #}
+      {%- else %}
+        {%- set icon = '49866' %}  {# Home with lightning #}
+      {%- endif %}
+    {%- else %}
+      {%- set color = [255, 0, 0] %}  {# Red - High consumption #}
+      {%- if icon_mode == 'lightning' %}
+        {%- set icon = '44432' %}  {# Red lightning #}
+      {%- elif icon_mode == 'plug' %}
+        {%- set icon = '6747' %}  {# Plug icon #}
+      {%- else %}
+        {%- set icon = '49866' %}  {# Home with lightning #}
+      {%- endif %}
+    {%- endif %}
+    
+    {%- set payload = {
+      'text': text,
+      'icon': icon,
+      'color': color,
+      'pushIcon': 0,
+      'noScroll': no_scroll,
+      'textCase': 2
+    } %}
+    
+    {%- if lifetime > 0 %}
+      {%- set payload = dict(payload, **{'lifetimeMode': 0, 'lifetime': lifetime}) %}
+    {%- endif %}
+    
+    {{ payload|tojson }}
+
+trigger:
+  - platform: state
+    entity_id: !input power_entity
+  - platform: time_pattern
+    minutes: "/1"
+
+condition: []
+
+action:
+  - repeat:
+      for_each: "{{ devices_topics }}"
+      sequence:
+        - service: mqtt.publish
+          data:
+            qos: 0
+            retain: false
+            topic: "{{ repeat.item }}"
+            payload: "{{ power_payload }}"
+  
+  # Log for debugging
+  - service: system_log.write
+    data:
+      message: >-
+        ⚡ Power Consumption Display Updated
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        Current Power: {{ states(power_entity) }}W
+        Thresholds: Low={{ low_threshold }}W, High={{ high_threshold }}W
+        Trigger: {{ trigger.platform }}
+      level: info

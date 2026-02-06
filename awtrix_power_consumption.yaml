@@ -167,29 +167,29 @@ variables:
     {%- if power_value < low_threshold %}
       {%- set color = [0, 255, 0] %}  {# Green - Low consumption #}
       {%- if icon_mode == 'lightning' %}
-        {%- set icon = '44432' %}  {# Green lightning #}
+        {%- set icon = '95' %}  {# Lightning bolt #}
       {%- elif icon_mode == 'plug' %}
-        {%- set icon = '6747' %}  {# Plug icon #}
+        {%- set icon = '44432' %}  {# Plug icon #}
       {%- else %}
-        {%- set icon = '49866' %}  {# Home with lightning #}
+        {%- set icon = '53397' %}  {# Home with lightning #}
       {%- endif %}
     {%- elif power_value < high_threshold %}
       {%- set color = [255, 165, 0] %}  {# Orange - Medium consumption #}
       {%- if icon_mode == 'lightning' %}
-        {%- set icon = '44432' %}  {# Orange lightning #}
+        {%- set icon = '95' %}  {# Lightning bolt #}
       {%- elif icon_mode == 'plug' %}
-        {%- set icon = '6747' %}  {# Plug icon #}
+        {%- set icon = '44432' %}  {# Plug icon #}
       {%- else %}
-        {%- set icon = '49866' %}  {# Home with lightning #}
+        {%- set icon = '53397' %}  {# Home with lightning #}
       {%- endif %}
     {%- else %}
       {%- set color = [255, 0, 0] %}  {# Red - High consumption #}
       {%- if icon_mode == 'lightning' %}
-        {%- set icon = '44432' %}  {# Red lightning #}
+        {%- set icon = '95' %}  {# Lightning bolt #}
       {%- elif icon_mode == 'plug' %}
-        {%- set icon = '6747' %}  {# Plug icon #}
+        {%- set icon = '44432' %}  {# Plug icon #}
       {%- else %}
-        {%- set icon = '49866' %}  {# Home with lightning #}
+        {%- set icon = '53397' %}  {# Home with lightning #}
       {%- endif %}
     {%- endif %}
     
